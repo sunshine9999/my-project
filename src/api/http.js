@@ -1,6 +1,6 @@
 // 本文件不允许私自修改，环保除引用第三方接口外一律使用post请求方式，接口定义请参考接口规范书写，这里只做全局http请求状态拦截，其他用户状态一律放行，页面内部做判断自行处理
 import axios from 'axios'
-import viewDesign from 'view-design'
+// import viewDesign from 'view-design'
 import {
   baseUrl
 } from './url'
@@ -12,10 +12,10 @@ axios.defaults.timeout = 60000
 axios.defaults.baseURL = baseUrl
 axios.defaults.headers.post['Content-Type'] = 'application/json'
 axios.defaults.headers.get['Content-Type'] = 'application/x-www-form-urlencoded;charset=utf-8'
-
+const oldUrl = axios.defaults.baseURL
 // 请求拦截
 axios.interceptors.request.use(function (config) {
-  viewDesign.LoadingBar.start()
+  // viewDesign.LoadingBar.start()
   const token = sessionStorage.getItem('accessToken') || localStorage.getItem('accessToken')
   if (token) {
     config.headers.Authorization = token
@@ -28,7 +28,7 @@ axios.interceptors.request.use(function (config) {
 //   Promise.reject(createError('Network Error', axios.interceptors.request.config, null, axios.interceptors.request))
 // }
 axios.interceptors.response.use(function (response) {
-  viewDesign.LoadingBar.finish()
+  // viewDesign.LoadingBar.finish()
   if (response.status === 200) {
     switch (response.data.code) {
       case (401):
@@ -69,7 +69,8 @@ axios.interceptors.response.use(function (response) {
 })
 export let Axios = axios
 // 封装axios的get请求
-export function get (url, params, Origin, openLoading) {
+export function get(url, params, Origin, openLoading) {
+  axios.defaults.baseURL = oldUrl
   if (Origin) {
     axios.defaults.baseURL = Origin
   }
@@ -83,6 +84,7 @@ export function get (url, params, Origin, openLoading) {
         }
       })
       .then(response => {
+        // console.log('get', '\n', url, '\n', params, '\n', response)
         resolve(response.data)
       })
       .catch(error => {
@@ -92,7 +94,8 @@ export function get (url, params, Origin, openLoading) {
 }
 
 // 封装axios的post请求
-export function post (url, data = {}, Origin, openLoading) {
+export function post(url, data = {}, Origin, openLoading) {
+  axios.defaults.baseURL = oldUrl
   if (Origin) {
     axios.defaults.baseURL = Origin
   }
@@ -100,6 +103,7 @@ export function post (url, data = {}, Origin, openLoading) {
     axios
       .post(url, data)
       .then(response => {
+        console.log('post', '\n', url, 'response', response, '\n', data, '\n', response)
         resolve(response.data)
       })
       .catch(error => {
@@ -109,7 +113,9 @@ export function post (url, data = {}, Origin, openLoading) {
 }
 
 // 封装axios的post请求-序列化
-export function postStringify (url, data = {}, Origin, openLoading) {
+export function postStringify(url, data = {},
+  Origin, openLoading) {
+  axios.defaults.baseURL = oldUrl
   if (Origin) {
     axios.defaults.baseURL = Origin
   }
@@ -123,6 +129,73 @@ export function postStringify (url, data = {}, Origin, openLoading) {
         resolve(response.data)
       })
       .catch(error => {
+        reject(error)
+      })
+  })
+}
+
+// 封装axios的下载数据流转换成excel
+export function DownLoadToExcel(url, data = {}, fileName) {
+  fileName = fileName + '.xls'
+  return new Promise((resolve, reject) => {
+    axios
+      .post(url, data, {
+        responseType: 'blob'
+      })
+      .then(response => {
+        const blob = new Blob([response.data], {
+          type: 'application/vnd.ms-excel'
+        })
+        if ('download' in document.createElement('a')) {
+          // 非IE下载
+          const elink = document.createElement('a')
+          elink.download = fileName
+          elink.style.display = 'none'
+          elink.href = URL.createObjectURL(blob)
+          document.body.appendChild(elink)
+          elink.click()
+          URL.revokeObjectURL(elink.href)
+          document.body.removeChild(elink)
+        } else {
+          // IE10+下载
+          navigator.msSaveBlob(blob, fileName)
+        }
+        resolve()
+      })
+      .catch(error => {
+        console.log(error)
+        reject(error)
+      })
+  })
+}
+// 封装axios的下载数据流转换成excel
+export function DownLoadToFile(url, data = {}, fileName) {
+  return new Promise((resolve, reject) => {
+    axios
+      .get(url, data, {
+        'responseType': 'blob',
+        'Access-Control-Allow-Origin': '*',
+        'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8'
+      })
+      .then(response => {
+        const blob = new Blob([response.data], {
+          type: 'application/octet-stream'
+        })
+        let objectUrl = URL.createObjectURL(blob)
+
+        if ('download' in document.createElement('a')) {
+          let a = document.createElement('a')
+          a.setAttribute('href', objectUrl)
+          a.setAttribute('download', 'downloadFile.zip')
+          a.click()
+        } else {
+          // IE10+下载
+          navigator.msSaveBlob(blob, fileName)
+        }
+        resolve(blob)
+      })
+      .catch(error => {
+        console.log(error)
         reject(error)
       })
   })
